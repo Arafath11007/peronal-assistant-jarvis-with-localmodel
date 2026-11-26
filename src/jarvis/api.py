@@ -126,6 +126,25 @@ def create_app(store: Store | None = None, llm: LLMClient | None = None) -> Fast
             raise HTTPException(status_code=404, detail="unknown session")
         return app.state.store.messages(session_id)
 
+    @app.delete("/sessions/{session_id}", summary="Delete Session")
+    async def delete_session(session_id: str):
+        """Delete a chat session and all its messages."""
+        if not app.state.store.exists(session_id):
+            raise HTTPException(status_code=404, detail="unknown session")
+        app.state.store.delete_session(session_id)
+        return {"status": "ok", "deleted": session_id}
+
+    class RenameRequest(BaseModel):
+        title: str = Field(min_length=1, max_length=100)
+
+    @app.patch("/sessions/{session_id}", summary="Rename Session")
+    async def rename_session(session_id: str, req: RenameRequest):
+        """Rename a chat session title."""
+        if not app.state.store.exists(session_id):
+            raise HTTPException(status_code=404, detail="unknown session")
+        app.state.store.rename_session(session_id, req.title)
+        return {"status": "ok", "id": session_id, "title": req.title}
+
     @app.post("/chat", summary="Stream Chat Completion")
     async def chat(req: ChatRequest):
         """Stream a chat conversation response as Server-Sent Events (SSE).

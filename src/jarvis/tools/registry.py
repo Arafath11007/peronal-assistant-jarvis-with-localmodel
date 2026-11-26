@@ -71,7 +71,9 @@ def run_tool(name: str, raw_args: str) -> str:
         return f"Error: unknown tool '{name}'. Available tools: {', '.join(REGISTRY)}"
     try:
         args = json.loads(raw_args or "{}")
-        result = t.func(**args)
+        result = str(t.func(**args))
     except Exception as e:
         return f"Error running {name}: {type(e).__name__}: {e}"
-    return str(result)
+    if len(result) > MAX_OUTPUT_CHARS:
+        return result[:MAX_OUTPUT_CHARS] + f"\n... [truncated to {MAX_OUTPUT_CHARS} chars]"
+    return result

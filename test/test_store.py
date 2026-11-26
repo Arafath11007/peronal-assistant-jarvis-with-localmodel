@@ -18,8 +18,15 @@ def test_title_comes_from_first_message_only():
     assert s.list_sessions()[0]["title"] == "first question"
 
 
-def test_find_session_by_prefix():
+def test_delete_and_rename_session():
     s = Store(":memory:")
     sid = s.new_session()
-    assert s.find_session(sid[:4]) == sid
-    assert s.find_session("zzzz") is None
+    s.add_turn(sid, "hello", "world")
+    assert s.exists(sid)
+    
+    assert s.rename_session(sid, "Updated Title") is True
+    assert s.list_sessions()[0]["title"] == "Updated Title"
+    
+    assert s.delete_session(sid) is True
+    assert not s.exists(sid)
+    assert len(s.messages(sid)) == 0

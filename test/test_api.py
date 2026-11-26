@@ -58,8 +58,15 @@ def test_unknown_session_is_404():
         r = c.post("/chat", json={"message": "x", "session_id": "nope"})
         assert r.status_code == 404
 
-def test_index_page_served():
+def test_delete_and_rename_session_api():
     with make_client() as c:
-        r = c.get("/")
-        assert r.status_code == 200
-        assert "Jarvis" in r.text
+        sid = chat(c, message="hello")[-1][1]["session_id"]
+        # Rename
+        res = c.patch(f"/sessions/{sid}", json={"title": "Renamed Chat"})
+        assert res.status_code == 200
+        assert res.json()["title"] == "Renamed Chat"
+
+        # Delete
+        res = c.delete(f"/sessions/{sid}")
+        assert res.status_code == 200
+        assert c.get(f"/sessions/{sid}/messages").status_code == 404

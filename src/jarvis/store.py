@@ -173,6 +173,36 @@ class Store:
         ).fetchall()
         return [dict(r) for r in rows]
 
+    def delete_session(self, session_id: str) -> bool:
+        """Delete a session and all its messages (via ON DELETE CASCADE).
+
+        Args:
+            session_id: The session ID to delete.
+
+        Returns:
+            True if a session was deleted, False if it was not found.
+        """
+        with self.db:
+            cursor = self.db.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+            return cursor.rowcount > 0
+
+    def rename_session(self, session_id: str, new_title: str) -> bool:
+        """Update the title of a specific session.
+
+        Args:
+            session_id: The session ID to rename.
+            new_title: The new title string.
+
+        Returns:
+            True if updated, False if session not found.
+        """
+        with self.db:
+            cursor = self.db.execute(
+                f"UPDATE sessions SET title = ?, updated_at = {NOW} WHERE id = ?",
+                (new_title.strip()[:100], session_id),
+            )
+            return cursor.rowcount > 0
+
     def list_sessions(self, limit: int = 10) -> list[sqlite3.Row]:
         """List the most recently active sessions with message counts.
 
