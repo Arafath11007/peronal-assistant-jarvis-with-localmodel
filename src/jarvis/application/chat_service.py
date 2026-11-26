@@ -39,9 +39,13 @@ class ChatService:
 
         async with self._lock_for(sid):
             history = self.store.messages(sid)
+            # Cap history window to max_history_turns (2 messages per turn: user + assistant)
+            max_messages = settings.max_history_turns * 2
+            recent_history = history[-max_messages:] if len(history) > max_messages else history
+
             user_msg = {"role": "user", "content": message}
             budget = settings.context_token - settings.replay_reserve_tokens
-            messages = fit_to_budget(system_prompt(channel), [*history, user_msg], budget=budget)
+            messages = fit_to_budget(system_prompt(channel), [*recent_history, user_msg], budget=budget)
             trimmed = len(history) + 1 - (len(messages) - 1)
 
             if self._gate.locked():

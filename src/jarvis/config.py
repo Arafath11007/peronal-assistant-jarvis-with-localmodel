@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     # Concurrency control: on local CPU, 1 generation at a time avoids severe throttling
     max_parallel_generations: int = 1
 
+    # Latency optimization: maximum prior conversational exchanges (turns) sent to the LLM.
+    # 5 turns = 10 messages (user + assistant), keeping prompt pre-fill fast on local hardware.
+    max_history_turns: int = 5
+
 
 # Singleton instance used throughout the application
 settings = Settings()
