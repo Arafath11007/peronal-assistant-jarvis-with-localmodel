@@ -132,13 +132,15 @@ async def main() -> None:
         spinner = Spinner()
         spinner.start()
         try:
-            async for piece in llm.stream(messages, stats=stats):
-                if not parts:
-                    # Stop spinner as soon as the first token arrives
-                    await spinner.stop()
-                    print("jarvis> ", end="", flush=True)
-                print(piece, end="", flush=True)
-                parts.append(piece)
+            async for ev in llm.stream(messages, stats=stats):
+                if ev["type"] == "token":
+                    piece = ev["content"]
+                    if not parts:
+                        # Stop spinner as soon as the first token arrives
+                        await spinner.stop()
+                        print("jarvis> ", end="", flush=True)
+                    print(piece, end="", flush=True)
+                    parts.append(piece)
         except Exception as e:
             await spinner.stop()
             print(f"[error: {e}]")

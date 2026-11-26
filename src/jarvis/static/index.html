@@ -1039,6 +1039,15 @@ async function send(text) {
         if (event === "status") {
           sessionId = data.session_id;
           startTimer(data.state === "queued" ? "Queued" : "Jarvis is responding");
+        } else if (event === "tool_call") {
+          startTimer(`Executing tool: ${data.name}`);
+        } else if (event === "tool_result") {
+          // Insert a subtle tool badge into the assistant container
+          const badge = document.createElement("div");
+          badge.className = "tool-badge";
+          badge.innerHTML = `<span>⚡ Tool <b>${data.name}</b> returned</span>`;
+          contentEl.appendChild(badge);
+          scrollToBottomIfNeeded();
         } else if (event === "token") {
           if (!reply) stopTimer();
           reply += data.text;

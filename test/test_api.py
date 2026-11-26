@@ -7,9 +7,9 @@ from jarvis.store import Store
 
 
 class FakeLLM:
-    async def stream(self, messages, tier="fast", think=False, stats=None):
+    async def stream(self, messages, tier="fast", think=False, stats=None, tools=None):
         for piece in ["Hel", "lo ", "there"]:
-            yield piece
+            yield {"type": "token", "content": piece}
         if stats is not None:
             stats.chunks = 3
             stats.total_s = 0.01

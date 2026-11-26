@@ -188,54 +188,84 @@ class LLMClient:
         tier: Literal["fast", "smart"] = "fast",
         think: bool = False,
         stats: StreamStats | None = None,
-    ) -> AsyncIterator[str]:
-        """Stream generated response tokens asynchronously.
+        tools: list[dict] | None = None,
+    ) -> AsyncIterator[dict]:
+        """Stream generated response tokens and tool calls asynchronously.
 
         Args:
             messages: List of chat messages (`[{"role": "...", "content": "..."}]`).
             tier: 'fast' or 'smart' model selection.
             think: If True, keep thinking tags; if False, filter out `<think>` blocks.
             stats: Optional StreamStats instance to record latency and throughput.
+            tools: Optional OpenAI-format tools schema list.
 
         Yields:
-            Clean text chunks suitable for direct display or speech synthesis.
-
-        Example:
-            ```python
-            async for token in client.stream([{"role": "user", "content": "Hi"}]):
-                print(token, end="")
-            ```
+            Dict events:
+            - `{"type": "token", "content": str}`
+            - `{"type": "tool_call", "name": str, "arguments": str, "id": str}`
         """
         model = self.model_for(tier)
         stats = stats if stats is not None else StreamStats()
         stripper = ThinkStripper()
         started = False
         t0 = time.perf_counter()
+        tool_call_acc: dict[int, dict] = {}
+
+        kwargs = {
+            "model": model,
+            "messages": self._prepare(messages, model, think),
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
+        if tools:
+            kwargs["tools"] = tools
+
         try:
-            resp = await self._client.chat.completions.create(
-                model=model,
-                messages=self._prepare(messages, model, think),
-                stream=True,
-                stream_options={"include_usage": True},
-            )
+            resp = await self._client.chat.completions.create(**kwargs)
             async for chunk in resp:
                 if chunk.usage:
                     stats.completion_tokens = chunk.usage.completion_tokens
                 if not chunk.choices:
                     continue
-                piece = stripper.feed(chunk.choices[0].delta.content or "")
-                if not started:
-                    # Strip leading whitespace from the initial chunk for cleaner output
-                    piece = piece.lstrip()
-                if piece:
+
+                delta = chunk.choices[0].delta
+
+                # Accumulate streaming tool calls
+                if delta.tool_calls:
+                    for tc in delta.tool_calls:
+                        idx = tc.index
+                        if idx not in tool_call_acc:
+                            tool_call_acc[idx] = {
+                                "id": tc.id or f"call_{idx}",
+                                "name": tc.function.name or "",
+                                "arguments": "",
+                            }
+                        if tc.function.name:
+                            tool_call_acc[idx]["name"] = tc.function.name
+                        if tc.function.arguments:
+                            tool_call_acc[idx]["arguments"] += tc.function.arguments
+
+                # Process text stream tokens
+                content = delta.content or ""
+                if content:
+                    piece = stripper.feed(content)
                     if not started:
-                        started = True
-                        stats.first_token_s = time.perf_counter() - t0
-                    stats.chunks += 1
-                    yield piece
+                        piece = piece.lstrip()
+                    if piece:
+                        if not started:
+                            started = True
+                            stats.first_token_s = time.perf_counter() - t0
+                        stats.chunks += 1
+                        yield {"type": "token", "content": piece}
+
             tail = stripper.flush()
             tail = tail if started else tail.lstrip()
             if tail:
-                yield tail
+                yield {"type": "token", "content": tail}
+
+            # Emit accumulated tool calls if any were detected
+            for call in tool_call_acc.values():
+                yield {"type": "tool_call", **call}
+
         finally:
             stats.total_s = time.perf_counter() - t0
